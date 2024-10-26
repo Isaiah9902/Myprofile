@@ -3,63 +3,484 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile Page</title>
+    <title>2D Shooter Game with Levels, Boss Fight, Shield, Score, and Enhanced Shooting</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f9;
             margin: 0;
-            padding: 0;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
+            background-color: #ecf0f1;
         }
-        .profile-container {
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            max-width: 400px;
-            width: 100%;
-            padding: 20px;
+        canvas {
+            background-color: #2c3e50;
+            display: block;
+            border: 3px solid #34495e;
+        }
+        .level-display, .score-display, .health-display {
+            position: absolute;
+            color: white;
+            font-family: Arial, sans-serif;
             text-align: center;
         }
-        .profile-img {
-            width: 150px;
-            height: 150px;
-            border-radius: 50%;
-            object-fit: cover;
-            margin-bottom: 20px;
-        }
-        .profile-name {
+        .level-display {
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
             font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 10px;
         }
-        .profile-bio {
-            font-size: 16px;
-            color: #666;
-            margin-bottom: 20px;
+        .score-display {
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
         }
-        .social-links a {
-            margin: 0 10px;
-            text-decoration: none;
-            color: #3498db;
-            font-size: 18px;
+        .health-display {
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
         }
     </style>
 </head>
 <body>
-    <div class="profile-container">
-        <img src="https://i.redd.it/1d9m0f2fzzr71.png" alt="Profile Image" class="profile-img">
-        <div class="profile-name">Isaiah Brown-Thompson</div>
-        <div class="profile-bio">Hey there! I'm a 14-year-old adventurer who loves exploring new worlds through anime. My all-time favorite is *One Piece*—the journey of Luffy and the Straw Hat Pirates always keeps me inspired. When I'm not binge-watching episodes, I'm probably daydreaming about becoming the Pirate King! In my free time, I enjoy gaming, drawing, and discovering new things to fuel my creativity..</div>
-        <div class="social-links">
-            <a href="#">LinkedIn</a>
-            <a href="#">Twitter</a>
-            <a href="#">GitHub</a>
-        </div>
-    </div>
+
+<div class="level-display" id="levelDisplay"></div>
+<div class="score-display" id="scoreDisplay"></div>
+<div class="health-display" id="healthDisplay"></div>
+<canvas id="gameCanvas"></canvas>
+
+<script>
+    // Setup canvas
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const levelDisplay = document.getElementById("levelDisplay");
+    const scoreDisplay = document.getElementById("scoreDisplay");
+    const healthDisplay = document.getElementById("healthDisplay");
+    canvas.width = 800;
+    canvas.height = 600;
+
+    // Player
+    const player = {
+        x: 400,
+        y: 500,
+        width: 40,
+        height: 40,
+        color: "red",
+        speed: 7,
+        health: 5,
+        bullets: [],
+        shieldActive: false,
+        shieldCooldown: 300,
+        shieldTimer: 0,
+        shootCooldown: 10,
+        shootTimer: 0,
+        shoot() {
+            if (this.shootTimer === 0) {
+                const bullet = { 
+                    x: this.x + this.width / 2, 
+                    y: this.y, 
+                    width: 5, 
+                    height: 10, 
+                    bulletSpeed: 10 
+                };
+
+                this.bullets.push(bullet);
+                this.shootTimer = this.shootCooldown;
+            }
+        },
+        draw() {
+            ctx.fillStyle = this.color;
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+        },
+        reset() {
+            this.x = 400;
+            this.y = 500;
+            this.bullets = [];
+            this.shieldActive = false;
+            this.shieldTimer = 0;
+            this.health = 5;
+        },
+        drawHealth() {
+            ctx.fillStyle = "green";
+            ctx.fillRect(20, 20, 200, 20);
+            ctx.fillStyle = "red";
+            ctx.fillRect(20, 20, (this.health / 5) * 200, 20);
+        }
+    };
+
+    // Enemy
+    class Enemy {
+        constructor(x, y, speed) {
+            this.x = x;
+            this.y = y;
+            this.width = 40;
+            this.height = 40;
+            this.speed = speed;
+            this.alive = true;
+            this.bullets = [];
+            this.shootCooldown = 60;
+            this.shootTimer = 0;
+        }
+
+        draw() {
+            if (this.alive) {
+                ctx.fillStyle = "green";
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+            }
+        }
+
+        update() {
+            this.y += this.speed;
+
+            if (this.shootTimer === 0) {
+                this.bullets.push({ x: this.x + this.width / 2, y: this.y + this.height, width: 5, height: 10 });
+                this.shootTimer = this.shootCooldown;
+            } else {
+                this.shootTimer--;
+            }
+        }
+    }
+
+    // Boss
+    class Boss {
+        constructor() {
+            this.x = canvas.width / 2 - 80;
+            this.y = 50;
+            this.width = 160;
+            this.height = 80;
+            this.speed = 2;
+            this.health = 20;
+            this.bullets = [];
+            this.shootCooldown = 80;
+            this.shootTimer = 0;
+        }
+
+        draw() {
+            ctx.fillStyle = "purple";
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+
+            ctx.fillStyle = "red";
+            ctx.fillRect(this.x, this.y - 20, (this.health / 20) * this.width, 10);
+            ctx.strokeStyle = "white";
+            ctx.strokeRect(this.x, this.y - 20, this.width, 10);
+        }
+
+        update() {
+            this.x += this.speed;
+            if (this.x <= 0 || this.x + this.width >= canvas.width) {
+                this.speed *= -1;
+            }
+
+            if (this.shootTimer === 0) {
+                this.bullets.push({ x: this.x + this.width / 2, y: this.y + this.height, width: 5, height: 10 });
+                this.shootTimer = this.shootCooldown;
+            } else {
+                this.shootTimer--;
+            }
+        }
+    }
+
+    // Game variables
+    let enemies = [];
+    let keys = {};
+    let currentLevel = 0;
+    let score = 0;
+    let showNextLevelMessage = false;
+    const boss = new Boss();
+    let bossFight = false;
+
+    const levels = [
+        { enemyCount: 3, enemySpeed: 1.0 }, // Slower enemies
+        { enemyCount: 4, enemySpeed: 1.0 },
+        { enemyCount: 5, enemySpeed: 1.5 },
+        { enemyCount: 6, enemySpeed: 1.5 },
+        { enemyCount: 7, enemySpeed: 2.0 },
+        { enemyCount: 8, enemySpeed: 2.0 },
+        { enemyCount: 9, enemySpeed: 2.5 },
+        { enemyCount: 10, enemySpeed: 2.5 },
+        { enemyCount: 12, enemySpeed: 3.0 },
+        { bossFight: true }
+    ];
+
+    // Setup key listeners
+    document.addEventListener("keydown", (e) => keys[e.key] = true);
+    document.addEventListener("keyup", (e) => keys[e.key] = false);
+    document.addEventListener("keydown", (e) => {
+        if (e.key === " ") {
+            player.shoot();
+        }
+        if (e.key === "e") {
+            if (!player.shieldActive && player.shieldTimer === 0) {
+                player.shieldActive = true;
+                player.shieldTimer = player.shieldCooldown;
+            }
+        }
+    });
+
+    // Find closest enemy to home bullets
+    function findClosestEnemy(bullet) {
+        let closest = null;
+        let minDist = Infinity;
+
+        enemies.forEach(enemy => {
+            if (enemy.alive) {
+                const dist = Math.hypot(enemy.x + enemy.width / 2 - bullet.x, enemy.y - bullet.y);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = enemy;
+                }
+            }
+        });
+
+        return closest;
+    }
+
+    // Find closest player to home boss bullets
+    function findClosestPlayer(bullet) {
+        return player;
+    }
+
+    // Start new level
+    function startLevel() {
+        const level = levels[currentLevel];
+
+        if (level.bossFight) {
+            bossFight = true;
+            boss.health = 20;
+        } else {
+            enemies = [];
+            for (let i = 0; i < level.enemyCount; i++) {
+                const x = Math.random() * (canvas.width - 40);
+                const y = Math.random() * -200; // Start off-screen
+                enemies.push(new Enemy(x, y, level.enemySpeed));
+            }
+        }
+
+        showNextLevelMessage = true;
+        levelDisplay.innerText = `Level ${currentLevel + 1}`;
+        setTimeout(() => {
+            showNextLevelMessage = false;
+            levelDisplay.innerText = "";
+        }, 2000);
+    }
+
+    // Game loop
+    function gameLoop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Update player shooting timer
+        if (player.shootTimer > 0) {
+            player.shootTimer--;
+        }
+
+        // Move player with WASD
+        if (keys["a"] && player.x > 0) player.x -= player.speed; 
+        if (keys["d"] && player.x + player.width < canvas.width) player.x += player.speed; 
+        if (keys["w"] && player.y > 0) player.y -= player.speed; 
+        if (keys["s"] && player.y + player.height < canvas.height) player.y += player.speed; 
+
+        // Draw player
+        player.draw();
+        player.drawHealth();
+
+        // Update and draw player bullets
+        player.bullets.forEach((bullet, index) => {
+            const closestEnemy = findClosestEnemy(bullet);
+            if (closestEnemy) {
+                const angle = Math.atan2(closestEnemy.y + closestEnemy.height / 2 - bullet.y, closestEnemy.x + closestEnemy.width / 2 - bullet.x);
+                bullet.dx = Math.cos(angle) * bullet.bulletSpeed;
+                bullet.dy = Math.sin(angle) * bullet.bulletSpeed;
+            } else {
+                bullet.dy = -bullet.bulletSpeed; // Move straight up if no enemy
+            }
+
+            bullet.x += bullet.dx;
+            bullet.y += bullet.dy;
+
+            // Draw bullet
+            ctx.fillStyle = "yellow";
+            ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+
+            // Remove off-screen bullets
+            if (bullet.y < 0) {
+                player.bullets.splice(index, 1);
+            }
+        });
+
+        // Update and draw enemies
+        enemies.forEach((enemy, enemyIndex) => {
+            if (enemy.alive) {
+                enemy.update();
+                enemy.draw();
+
+                // Update enemy bullets
+                enemy.bullets.forEach((bullet, bulletIndex) => {
+                    const closestPlayer = findClosestPlayer(bullet);
+                    const angle = Math.atan2(closestPlayer.y + closestPlayer.height / 2 - bullet.y, closestPlayer.x + closestPlayer.width / 2 - bullet.x);
+                    bullet.dx = Math.cos(angle) * 3; // Speed of enemy bullets
+                    bullet.dy = Math.sin(angle) * 3;
+
+                    bullet.x += bullet.dx;
+                    bullet.y += bullet.dy;
+
+                    ctx.fillStyle = "white";
+                    ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+
+                    // Check collision with player
+                    if (
+                        bullet.x < player.x + player.width &&
+                        bullet.x + bullet.width > player.x &&
+                        bullet.y < player.y + player.height &&
+                        bullet.y + bullet.height > player.y
+                    ) {
+                        if (!player.shieldActive) {
+                            player.health--;
+                            if (player.health <= 0) {
+                                alert("Game Over! You were hit!");
+                                resetGame();
+                            }
+                        } else {
+                            // If shield is active, deflect the bullet
+                            enemy.bullets.splice(bulletIndex, 1);
+                        }
+                    }
+
+                    // Remove off-screen bullets
+                    if (bullet.x < 0 || bullet.x > canvas.width || bullet.y < 0 || bullet.y > canvas.height) {
+                        enemy.bullets.splice(bulletIndex, 1);
+                    }
+                });
+
+                // Check collision with player bullets
+                player.bullets.forEach((bullet, bulletIndex) => {
+                    if (
+                        bullet.x < enemy.x + enemy.width &&
+                        bullet.x + bullet.width > enemy.x &&
+                        bullet.y < enemy.y + enemy.height &&
+                        bullet.y + bullet.height > enemy.y
+                    ) {
+                        enemy.alive = false;
+                        player.bullets.splice(bulletIndex, 1);
+                        score += 10; // Increase score for defeating an enemy
+                    }
+                });
+
+                // Check if enemy reaches the bottom (end game condition)
+                if (enemy.y + enemy.height > canvas.height) {
+                    alert("Game Over! An enemy reached the bottom!");
+                    resetGame();
+                }
+            }
+        });
+
+        // Boss fight logic
+        if (bossFight) {
+            boss.update();
+            boss.draw();
+
+            // Update boss bullets
+            boss.bullets.forEach((bullet, bulletIndex) => {
+                const closestPlayer = findClosestPlayer(bullet);
+                const angle = Math.atan2(closestPlayer.y + closestPlayer.height / 2 - bullet.y, closestPlayer.x + closestPlayer.width / 2 - bullet.x);
+                bullet.dx = Math.cos(angle) * 3; // Speed of boss bullets
+                bullet.dy = Math.sin(angle) * 3;
+
+                bullet.x += bullet.dx;
+                bullet.y += bullet.dy;
+
+                ctx.fillStyle = "white";
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+
+                // Check collision with player
+                if (
+                    bullet.x < player.x + player.width &&
+                    bullet.x + bullet.width > player.x &&
+                    bullet.y < player.y + player.height &&
+                    bullet.y + bullet.height > player.y
+                ) {
+                    if (!player.shieldActive) {
+                        player.health--;
+                        if (player.health <= 0) {
+                            alert("Game Over! You were hit by the boss!");
+                            resetGame();
+                        }
+                    } else {
+                        // If shield is active, deflect the bullet
+                        boss.bullets.splice(bulletIndex, 1);
+                    }
+                }
+
+                // Remove off-screen bullets
+                if (bullet.x < 0 || bullet.x > canvas.width || bullet.y < 0 || bullet.y > canvas.height) {
+                    boss.bullets.splice(bulletIndex, 1);
+                }
+            });
+
+            // Check collision with bullets
+            player.bullets.forEach((bullet, bulletIndex) => {
+                if (
+                    bullet.x < boss.x + boss.width &&
+                    bullet.x + bullet.width > boss.x &&
+                    bullet.y < boss.y + boss.height &&
+                    bullet.y + bullet.height > boss.y
+                ) {
+                    player.bullets.splice(bulletIndex, 1);
+                    boss.health--;
+
+                    if (boss.health <= 0) {
+                        alert("Congratulations! You defeated the boss!");
+                        resetGame();
+                    }
+                }
+            });
+        }
+
+        // Filter out dead enemies
+        enemies = enemies.filter(enemy => enemy.alive);
+
+        // Update score display
+        scoreDisplay.innerText = `Score: ${score}`;
+        healthDisplay.innerText = `Health: ${player.health}`;
+
+        // Level complete
+        if (enemies.length === 0 && !bossFight) {
+            currentLevel++;
+            if (currentLevel >= levels.length) {
+                alert("You completed all levels! Congratulations!");
+                resetGame();
+            } else {
+                startLevel();
+            }
+        }
+
+        // Shield logic
+        if (player.shieldActive) {
+            ctx.fillStyle = "rgba(0, 0, 255, 0.5)"; // Shield color
+            ctx.fillRect(player.x - 10, player.y - 10, player.width + 20, player.height + 20);
+            player.shieldTimer--;
+            if (player.shieldTimer <= 0) {
+                player.shieldActive = false;
+            }
+        }
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Reset game
+    function resetGame() {
+        currentLevel = 0;
+        bossFight = false;
+        score = 0; // Reset score
+        player.reset();
+        startLevel();
+    }
+
+    // Start the first level
+    startLevel();
+    gameLoop();
+</script>
+
 </body>
 </html>
-
